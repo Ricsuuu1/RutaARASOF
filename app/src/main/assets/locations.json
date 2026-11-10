@@ -1,0 +1,130 @@
+[
+  {
+    "id": "gate_1",
+    "name": "Gate 1",
+    "category": "Gate",
+    "description": "Campus Entrance/Exit Gate 1",
+    "x": 0.1,
+    "y": 0.1
+  },
+  {
+    "id": "gate_2",
+    "name": "Gate 2",
+    "category": "Gate",
+    "description": "Campus Entrance/Exit Gate 2",
+    "x": 0.2,
+    "y": 0.1
+  },
+  {
+    "id": "gate_3",
+    "name": "Gate 3",
+    "category": "Gate",
+    "description": "Campus Entrance/Exit Gate 3",
+    "x": 0.3,
+    "y": 0.1
+  },
+  {
+    "id": "gate_4",
+    "name": "Gate 4",
+    "category": "Gate",
+    "description": "Campus Entrance/Exit Gate 4",
+    "x": 0.4,
+    "y": 0.1
+  },
+  {
+    "id": "gate_5",
+    "name": "Gate 5",
+    "category": "Gate",
+    "description": "Campus Entrance/Exit Gate 5",
+    "x": 0.5,
+    "y": 0.1
+  },
+  {
+    "id": "lian_cafeteria",
+    "name": "Lian Cafeteria",
+    "category": "Canteen",
+    "description": "Campus Dining Facility - Lian Cafeteria",
+    "x": 0.2,
+    "y": 0.4
+  },
+  {
+    "id": "rosario_cafeteria",
+    "name": "Rosario Cafeteria",
+    "category": "Canteen",
+    "description": "Campus Dining Facility - Rosario Cafeteria",
+    "x": 0.3,
+    "y": 0.4
+  },
+  {
+    "id": "joson_gymnasium",
+    "name": "Joson Gymnasium",
+    "category": "Gym",
+    "description": "Sports and Events Gymnasium",
+    "x": 0.6,
+    "y": 0.3
+  },
+  {
+    "id": "heb",
+    "name": "Higher Education Building (HEB)",
+    "category": "Building",
+    "description": "Higher Education Academic Building",
+    "x": 0.4,
+    "y": 0.5
+  },
+  {
+    "id": "cteb",
+    "name": "College of Teacher Education Building (CTEB)",
+    "category": "Building",
+    "description": "Teacher Education Academic Building",
+    "x": 0.5,
+    "y": 0.5
+  },
+  {
+    "id": "cas",
+    "name": "College of Arts and Sciences Building (CAS Building)",
+    "category": "Building",
+    "description": "Arts and Sciences Academic Building",
+    "x": 0.6,
+    "y": 0.5
+  },
+  {
+    "id": "lemery",
+    "name": "Lemery Building",
+    "category": "Building",
+    "description": "Academic & Nursing Laboratories Building",
+    "x": 0.7,
+    "y": 0.5
+  },
+  {
+    "id": "taal",
+    "name": "Taal Building",
+    "category": "Building",
+    "description": "Academic & Administrative Building",
+    "x": 0.8,
+    "y": 0.5
+  },
+  {
+    "id": "imt",
+    "name": "IMT Building",
+    "category": "Building",
+    "description": "IMT Building & Campus Library",
+    "x": 0.4,
+    "y": 0.7
+  },
+  {
+    "id": "hostel",
+    "name": "Hostel Building",
+    "category": "Building",
+    "description": "Hospitality & Training Facilities Building",
+    "x": 0.5,
+    "y": 0.7
+  },
+  {
+    "id": "infirmary_supply",
+    "name": "Infirmary / Supply and Procurement Building",
+    "category": "Building",
+    "description": "Administrative Services, Cashier & Supply Building",
+    "x": 0.6,
+    "y": 0.7
+  }
+]
