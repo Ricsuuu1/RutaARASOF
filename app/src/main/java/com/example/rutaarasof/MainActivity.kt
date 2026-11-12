@@ -4,7 +4,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.example.rutaarasof.ui.MainScreen
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.rutaarasof.ui.CampusViewModel
+import com.example.rutaarasof.ui.screens.MapScreen
 import com.example.rutaarasof.ui.theme.RutaARASOFTheme
 
 class MainActivity : ComponentActivity() {
@@ -13,7 +15,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             RutaARASOFTheme {
-                MainScreen()
+                val viewModel: CampusViewModel = viewModel()
+                MapScreen(viewModel = viewModel)
             }
         }
     }
