@@ -4,127 +4,215 @@
     "name": "Gate 1",
     "category": "Gate",
     "description": "Campus Entrance/Exit Gate 1",
-    "x": 0.1,
-    "y": 0.1
+    "x": 0.196,
+    "y": 0.946
   },
   {
     "id": "gate_2",
     "name": "Gate 2",
     "category": "Gate",
     "description": "Campus Entrance/Exit Gate 2",
-    "x": 0.2,
-    "y": 0.1
+    "x": 0.583,
+    "y": 0.934
   },
   {
     "id": "gate_3",
     "name": "Gate 3",
     "category": "Gate",
     "description": "Campus Entrance/Exit Gate 3",
-    "x": 0.3,
-    "y": 0.1
+    "x": 0.449,
+    "y": 0.602
   },
   {
     "id": "gate_4",
     "name": "Gate 4",
     "category": "Gate",
     "description": "Campus Entrance/Exit Gate 4",
-    "x": 0.4,
-    "y": 0.1
-  },
-  {
-    "id": "gate_5",
-    "name": "Gate 5",
-    "category": "Gate",
-    "description": "Campus Entrance/Exit Gate 5",
-    "x": 0.5,
-    "y": 0.1
+    "x": 0.785,
+    "y": 0.931
   },
   {
     "id": "lian_cafeteria",
     "name": "Lian Cafeteria",
     "category": "Canteen",
     "description": "Campus Dining Facility - Lian Cafeteria",
-    "x": 0.2,
-    "y": 0.4
+    "x": 0.306,
+    "y": 0.54
   },
   {
     "id": "rosario_cafeteria",
     "name": "Rosario Cafeteria",
     "category": "Canteen",
     "description": "Campus Dining Facility - Rosario Cafeteria",
-    "x": 0.3,
-    "y": 0.4
+    "x": 0.655,
+    "y": 0.784
   },
   {
     "id": "joson_gymnasium",
     "name": "Joson Gymnasium",
     "category": "Gym",
     "description": "Sports and Events Gymnasium",
-    "x": 0.6,
-    "y": 0.3
+    "x": 0.572,
+    "y": 0.653
   },
   {
     "id": "heb",
     "name": "Higher Education Building (HEB)",
     "category": "Building",
     "description": "Higher Education Academic Building",
-    "x": 0.4,
-    "y": 0.5
+    "x": 0.341,
+    "y": 0.757
   },
   {
     "id": "cteb",
     "name": "College of Teacher Education Building (CTEB)",
     "category": "Building",
     "description": "Teacher Education Academic Building",
-    "x": 0.5,
-    "y": 0.5
+    "x": 0.478,
+    "y": 0.479
   },
   {
     "id": "cas",
     "name": "College of Arts and Sciences Building (CAS Building)",
     "category": "Building",
     "description": "Arts and Sciences Academic Building",
-    "x": 0.6,
-    "y": 0.5
+    "x": 0.52,
+    "y": 0.251
   },
   {
     "id": "lemery",
     "name": "Lemery Building",
     "category": "Building",
     "description": "Academic & Nursing Laboratories Building",
-    "x": 0.7,
-    "y": 0.5
+    "x": 0.537,
+    "y": 0.19
   },
   {
     "id": "taal",
     "name": "Taal Building",
     "category": "Building",
     "description": "Academic & Administrative Building",
-    "x": 0.8,
-    "y": 0.5
+    "x": 0.822,
+    "y": 0.75
   },
   {
     "id": "imt",
-    "name": "IMT Building",
+    "name": "Institute of Marine Technology (IMT) Building",
     "category": "Building",
     "description": "IMT Building & Campus Library",
-    "x": 0.4,
-    "y": 0.7
+    "x": 0.813,
+    "y": 0.374
   },
   {
     "id": "hostel",
     "name": "Hostel Building",
     "category": "Building",
     "description": "Hospitality & Training Facilities Building",
-    "x": 0.5,
-    "y": 0.7
+    "x": 0.213,
+    "y": 0.671
   },
   {
-    "id": "infirmary_supply",
-    "name": "Infirmary / Supply and Procurement Building",
+    "id": "ermita",
+    "name": "Ermita Building",
     "category": "Building",
     "description": "Administrative Services, Cashier & Supply Building",
-    "x": 0.6,
-    "y": 0.7
+    "x": 0.824,
+    "y": 0.607
+  },
+  {
+    "id": "infirmary_procurement",
+    "name": "Infirmary and Procurement Building",
+    "category": "Building",
+    "description": "Campus Health Infirmary and Procurement Building",
+    "x": 0.698,
+    "y": 0.667
+  },
+  {
+    "id": "student_council",
+    "name": "Student Council Building",
+    "category": "Building",
+    "description": "Student Council Offices and Services",
+    "x": 0.439,
+    "y": 0.303
+  },
+  {
+    "id": "maintenance",
+    "name": "Maintenance Building",
+    "category": "Building",
+    "description": "Campus Facilities Maintenance Building",
+    "x": 0.45,
+    "y": 0.057
+  },
+  {
+    "id": "open_court",
+    "name": "Open Court",
+    "category": "Facility",
+    "description": "Outdoor Open Sports Court",
+    "x": 0.318,
+    "y": 0.364
+  },
+  {
+    "id": "mini_forest",
+    "name": "Mini Forest",
+    "category": "Facility",
+    "description": "Campus Ecological Mini Forest Park",
+    "x": 0.612,
+    "y": 0.521
+  },
+  {
+    "id": "ground_powerhouse",
+    "name": "Ground Powerhouse",
+    "category": "Facility",
+    "description": "Campus Main Electrical Ground Powerhouse",
+    "x": 0.794,
+    "y": 0.445
+  },
+  {
+    "id": "batangan_center",
+    "name": "Batangan Students Center",
+    "category": "Building",
+    "description": "Not finished",
+    "x": 0.1,
+    "y": 0.854
+  },
+  {
+    "id": "santo_tomas",
+    "name": "Santo Tomas Building",
+    "category": "Building",
+    "description": "Under construction",
+    "x": 0.48,
+    "y": 0.8
+  },
+  {
+    "id": "hatchery_research",
+    "name": "Hatchery and Research Building",
+    "category": "Building",
+    "description": "Research and Hatchery Building",
+    "x": 0.868,
+    "y": 0.656
+  },
+  {
+    "id": "apacible_museum",
+    "name": "Apacible Museum",
+    "category": "Building",
+    "description": "Historical Apacible Museum Building",
+    "x": 0.573,
+    "y": 0.813
+  },
+  {
+    "id": "ibaan",
+    "name": "Ibaan Building",
+    "category": "Building",
+    "description": "Business and Development Hub",
+    "x": 0.681,
+    "y": 0.92
+  },
+  {
+    "id": "vip_corals",
+    "name": "VIP CORALS Nasugbu Marine Research Station",
+    "category": "Building",
+    "description": "Marine Research Station",
+    "x": 0.827,
+    "y": 0.914
   }
 ]

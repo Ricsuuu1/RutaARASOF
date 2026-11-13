@@ -161,8 +161,35 @@
   { "id": "hostel_308", "name": "Room 308", "buildingId": "hostel", "floor": 3, "type": "Classroom" },
   { "id": "hostel_3_dorm", "name": "Dormitory", "buildingId": "hostel", "floor": 3, "type": "Other" },
 
-  { "id": "infirmary_1_cashier", "name": "Cashier", "buildingId": "infirmary_supply", "floor": 1, "type": "Office" },
-  { "id": "infirmary_1_internal_audit", "name": "Internal Audit Service", "buildingId": "infirmary_supply", "floor": 1, "type": "Office" },
-  { "id": "infirmary_1_student_pub", "name": "Student Publication", "buildingId": "infirmary_supply", "floor": 1, "type": "Office" },
-  { "id": "infirmary_2_cit_assoc_dean_faculty", "name": "CIT Associate Dean and Faculty Room", "buildingId": "infirmary_supply", "floor": 2, "type": "Office" }
+  { "id": "infirmary_1_cashier", "name": "Cashier", "buildingId": "ermita", "floor": 1, "type": "Office" },
+  { "id": "infirmary_1_internal_audit", "name": "Internal Audit Service", "buildingId": "ermita", "floor": 1, "type": "Office" },
+  { "id": "infirmary_1_student_pub", "name": "Student Publication", "buildingId": "ermita", "floor": 1, "type": "Office" },
+  { "id": "infirmary_2_cit_assoc_dean_faculty", "name": "CIT Associate Dean and Faculty Room", "buildingId": "ermita", "floor": 2, "type": "Office" },
+
+  { "id": "infirmary_proc_1_procurement", "name": "Procurement and Supply Office", "buildingId": "infirmary_procurement", "floor": 1, "type": "Office" },
+  { "id": "infirmary_proc_1_records", "name": "Record Section and Central Supply Room", "buildingId": "infirmary_procurement", "floor": 1, "type": "Office" },
+  { "id": "infirmary_proc_1_storage", "name": "Storage Room", "buildingId": "infirmary_procurement", "floor": 1, "type": "Other" },
+  { "id": "infirmary_proc_1_pantry", "name": "Pantry", "buildingId": "infirmary_procurement", "floor": 1, "type": "Other" },
+  { "id": "infirmary_proc_1_dental", "name": "Dental Room", "buildingId": "infirmary_procurement", "floor": 1, "type": "Other" },
+  { "id": "infirmary_proc_1_nurse", "name": "Nurse Office", "buildingId": "infirmary_procurement", "floor": 1, "type": "Office" },
+  { "id": "infirmary_proc_1_consultation", "name": "Consultation Room", "buildingId": "infirmary_procurement", "floor": 1, "type": "Other" },
+  { "id": "infirmary_proc_1_er", "name": "Emergency Room", "buildingId": "infirmary_procurement", "floor": 1, "type": "Other" },
+  { "id": "infirmary_proc_1_ward", "name": "Male and Female Ward", "buildingId": "infirmary_procurement", "floor": 1, "type": "Other" },
+  { "id": "infirmary_proc_1_cr", "name": "Male and Female CR", "buildingId": "infirmary_procurement", "floor": 1, "type": "Restroom" },
+
+  { "id": "hatch  ery_1_sports_office", "name": "Sports Office", "buildingId": "hatchery_research", "floor": 1, "type": "Office" },
+  { "id": "hatchery_1_culture_arts_office", "name": "Culture and Arts Office (Official of Culture and Arts)", "buildingId": "hatchery_research", "floor": 1, "type": "Office" },
+
+  { "id": "apacible_1_registrar", "name": "Registrar", "buildingId": "apacible_museum", "floor": 1, "type": "Office" },
+  { "id": "apacible_1_chancellor", "name": "Office of the Chancellor", "buildingId": "apacible_museum", "floor": 1, "type": "Office" },
+  { "id": "apacible_1_tao", "name": "Testing and Admission Office (TAO)", "buildingId": "apacible_museum", "floor": 1, "type": "Office" },
+  { "id": "apacible_2_accounting", "name": "Accounting", "buildingId": "apacible_museum", "floor": 2, "type": "Office" },
+  { "id": "apacible_2_gened_faculty", "name": "General Education Faculty Room", "buildingId": "apacible_museum", "floor": 2, "type": "Office" },
+  { "id": "vip_1_wet_lab", "name": "Wet Laboratory", "buildingId": "vip_corals", "floor": 1, "type": "Lab" },
+  { "id": "vip_1_instrumentation", "name": "Instrumentation Room", "buildingId": "vip_corals", "floor": 1, "type": "Lab" },
+  { "id": "vip_1_accommodation", "name": "Accommodation Room", "buildingId": "vip_corals", "floor": 1, "type": "Other" },
+  { "id": "vip_1_conference", "name": "Conference Room", "buildingId": "vip_corals", "floor": 1, "type": "Office" },
+  { "id": "vip_1_lobby", "name": "Lobby", "buildingId": "vip_corals", "floor": 1, "type": "Other" },
+  { "id": "vip_1_main_entrance", "name": "Main Entrance", "buildingId": "vip_corals", "floor": 1, "type": "Other" },
+  { "id": "vip_1_toilet", "name": "Male & Female Toilet", "buildingId": "vip_corals", "floor": 1, "type": "Restroom" }
 ]

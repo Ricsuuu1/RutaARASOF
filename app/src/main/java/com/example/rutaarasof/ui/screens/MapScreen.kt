@@ -156,7 +156,7 @@ fun MapScreen(viewModel: CampusViewModel) {
     var isRoomsExpanded by remember { mutableStateOf(false) }
 
     // Categories filter list
-    val categories = listOf("All", "Building", "Gate", "Canteen", "Gym")
+    val categories = listOf("All", "Building", "Gate", "Canteen", "Gym", "Facility")
 
     // Load campus map image bitmap once
     val mapBitmap = remember(context) {
@@ -302,6 +302,7 @@ fun MapScreen(viewModel: CampusViewModel) {
                         "gate" -> Color(0xFF1976D2)    // Blue
                         "canteen" -> Color(0xFFE65100) // Orange
                         "gym" -> Color(0xFF7B1FA2)     // Purple
+                        "facility" -> Color(0xFF388E3C)// Forest Green
                         else -> MaterialTheme.colorScheme.secondary
                     }
 
@@ -739,7 +740,7 @@ fun MapScreen(viewModel: CampusViewModel) {
                             Text("Directions")
                         }
 
-                        if (loc.category.equals("Building", ignoreCase = true)) {
+                        if (loc.category.equals("Building", ignoreCase = true) && buildingRooms.isNotEmpty()) {
                             OutlinedButton(
                                 onClick = { isRoomsExpanded = !isRoomsExpanded },
                                 shape = RoundedCornerShape(10.dp)

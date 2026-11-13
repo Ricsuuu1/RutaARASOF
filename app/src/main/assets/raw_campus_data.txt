@@ -2,15 +2,32 @@ APP NAME: RutaARASOF
 UNIVERSITY: Batangas State University TNEU ARASOF - Nasugbu
 
 MAP LOCATIONS (each one gets a marker on the map)
-Gates: Gate 1, Gate 2, Gate 3, Gate 4, Gate 5
-Independent structures (category Canteen): Lian Cafeteria, Rosario Cafeteria
-Independent structures (category Gym): Joson Gymnasium
-Buildings: Higher Education Building (HEB), College of Teacher Education Building (CTEB),
-  College of Arts and Sciences Building (CAS Building), Lemery Building, Taal Building,
-  IMT Building, Hostel Building, Infirmary / Supply and Procurement Building
-Library is inside the IMT Building, 1st floor (no separate marker unless the map shows one)
+Gates (category Gate): Gate 1, Gate 2, Gate 3, Gate 4   (there is NO Gate 5)
+Canteens (category Canteen): Lian Cafeteria, Rosario Cafeteria
+Gym (category Gym): Joson Gymnasium
+Facilities (category Facility, no rooms): Open Court, Mini Forest, Ground Powerhouse
+Buildings with no room list (category Building, no rooms): Student Council Building, Maintenance Building,
+  Ibaan Building (Business and Development Hub)
+Buildings not yet usable (category Building, no rooms; say so in the description):
+  Batangan Students Center - not finished
+  Santo Tomas Building - under construction
+Buildings with rooms (category Building):
+  Higher Education Building (HEB)
+  College of Teacher Education Building (CTEB)
+  College of Arts and Sciences Building (CAS Building)
+  Lemery Building (LB)
+  Taal Building
+  Ermita Building
+  Infirmary and Procurement Building (a separate, different building from Ermita)
+  IMT Building (Institute of Marine Technology)
+  Hostel Building
+  Hatchery and Research Building
+  Apacible Museum
+  VIP Corals Nasugbu Marine Research Station
+The Library is inside the IMT Building, 1st floor (no separate marker).
 
 ROOMS (no markers; each room belongs to a building and a floor)
+Write room codes WITHOUT spaces: HEB204, CTEB101, LB101.
 
 BUILDING: Higher Education Building (HEB)
 Floor 1: Faculty Room; HEB101; HEB102; HEB103; HEB104; HEB105
@@ -27,7 +44,7 @@ BUILDING: College of Arts and Sciences Building (CAS Building)
 Floor 1: Female CR; Moot Court; Psychological Testing Room; Experimental Laboratory; Office of the Dean; CAS Associate Dean's and Program Chairperson Room
 Floor 2: Multimedia Room; Archive Room; Crime Laboratory; Lie Detector Room; Crime Scene Room; Dark Room; Radio Broadcasting Room; Editing Room; Radio and Television Room
 
-BUILDING: Lemery Building
+BUILDING: Lemery Building (LB)
 Floor 1: Sensory Laboratory; Faculty Room and Dean's Room; Physico-Chemical Laboratory; Electrical Room; Microbiology and Parasitology Laboratory (Food Microbiology and Parasitology Laboratory); Nutrition Laboratory; Male and Female CR; LB101; LB102; LB103; LB104; Anaphy Room; Levi's Room (Nutrition Clinic); Nursing Skills Laboratory Kit; Amphitheater; Central Supply Room (CSR); Private Room; Emergency Room
 Floor 2: LB201; LB202; LB203
 
@@ -37,7 +54,14 @@ Floor 2: Male CR; Dress Making Room; Electrical Room; Skills Development Center;
 Floor 3: Male CR; Extension Service Office; Electrical Room 1; Lecture 1 Room; Electrical Room 2; Electrical Room 3; Electrical Room 4; Electrical Room 5; Female CR; Fire Exit; ACCU Area (Air-Cooled Condensing Unit Area)
 Floor 4: Male CR; Male 1 Dormitory; Male 2 Dormitory; Electrical Room; Female 1 Dormitory; Female 2 Dormitory; Female 3 Dormitory; Mess Hall; Fire Exit; ACCU Area (Air-Cooled Condensing Unit Area)
 
-BUILDING: IMT Building
+BUILDING: Ermita Building
+Floor 1: Cashier; Internal Audit Service; Student Publication
+Floor 2: CIT Associate Dean and Faculty Room
+
+BUILDING: Infirmary and Procurement Building
+Floor 1: Procurement and Supply Office; Record Section and Central Supply Room; Storage Room; Pantry; Dental Room; Nurse Office; Consultation Room; Emergency Room; Male and Female Ward; Male and Female CR
+
+BUILDING: IMT Building (Institute of Marine Technology)
 Floor 1: Library; CAS Faculty; Office of the Vice Chancellor for Academic Affairs; Office of the Dean
 Floor 2: CICS Faculty Room; Office of the Vice Chancellor for Research, Development and Extension Services
 
@@ -46,10 +70,18 @@ Floor 1: Tour and Travel Mock Room; Food and Beverage Lab; Cold Kitchen; Hot Kit
 Floor 2: Housekeeping Lab; Function Room A; Function Room B; Function Room C; Function Room D; Function Room E
 Floor 3: Executive Suite (Presidential Suite); Room 301; Room 302; Room 303; Room 304; Room 305; Room 306; Room 307; Room 308; Dormitory
 
-BUILDING: Infirmary / Supply and Procurement Building (several offices combined in one building)
-Floor 1: Cashier; Internal Audit Service; Student Publication
-Floor 2: CIT Associate Dean and Faculty Room
+BUILDING: Hatchery and Research Building
+Floor 1: Sports Office; Culture and Arts Office (Official of Culture and Arts)
+
+BUILDING: Apacible Museum
+Floor 1: Registrar; Office of the Chancellor; Testing and Admission Office (TAO)
+Floor 2: Accounting; General Education Faculty Room
+
+BUILDING: VIP Corals Nasugbu Marine Research Station
+Floor 1: Wet Laboratory; Instrumentation Room; Accommodation Room; Conference Room; Lobby; Main Entrance; Male and Female Toilet
 
 NOTES FOR THE DEVELOPER (not data; do not turn these into rooms)
+- Ermita Building and Infirmary and Procurement Building are TWO different buildings.
 - Colleges share buildings and rooms, so do NOT add a college field to buildings or rooms.
 - ACCU = Air-Cooled Condensing Unit. ACCU Area rooms are utility areas.
+- Cold Kitchen had no floor in the source document; it sits in the Hostel 1st floor table, so use floor 1.
