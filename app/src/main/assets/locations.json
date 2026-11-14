@@ -214,5 +214,13 @@
     "description": "Marine Research Station",
     "x": 0.827,
     "y": 0.914
+  },
+  {
+    "id": "rental_stall",
+    "name": "Rental Stall",
+    "category": "Facility",
+    "description": "Commercial rental stalls",
+    "x": 0.237,
+    "y": 0.936
   }
 ]

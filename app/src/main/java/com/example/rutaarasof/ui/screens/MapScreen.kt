@@ -7,11 +7,13 @@ import android.graphics.BitmapFactory
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -36,20 +38,25 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DoorFront
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -78,6 +85,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
@@ -91,9 +99,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rutaarasof.R
 import com.example.rutaarasof.data.model.CampusLocation
+import com.example.rutaarasof.data.model.GraphNode
 import com.example.rutaarasof.data.model.SearchResult
 import com.example.rutaarasof.ui.CampusViewModel
 import kotlin.math.round
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 // Helper function to clamp pan translations so map boundaries never leave the visible screen area
@@ -127,7 +137,7 @@ private fun clampPan(
     return Pair(clampedX, clampedY)
 }
 
-// Single-Screen Map View with pinch-to-zoom, pan, search, location card, and calibration mode
+// Single-Screen Map View with pinch-to-zoom, pan, search, location card, calibration, and graph editing mode
 @Composable
 fun MapScreen(viewModel: CampusViewModel) {
     val context = LocalContext.current
@@ -140,8 +150,15 @@ fun MapScreen(viewModel: CampusViewModel) {
     val selectedCategory by viewModel.selectedCategory.collectAsState()
     val selectedLocation by viewModel.selectedLocation.collectAsState()
     val searchResults by viewModel.searchResults.collectAsState()
+
+    // Mode toggles
     val isCalibrateMode by viewModel.isCalibrateMode.collectAsState()
     val calibrationTarget by viewModel.calibrationTarget.collectAsState()
+
+    val isGraphMode by viewModel.isGraphMode.collectAsState()
+    val nodes by viewModel.nodes.collectAsState()
+    val edges by viewModel.edges.collectAsState()
+    val selectedNodeId by viewModel.selectedNodeId.collectAsState()
 
     // Measure heights for top and bottom overlays
     val topOverlayPx = with(density) { 180.dp.toPx() }
@@ -218,8 +235,8 @@ fun MapScreen(viewModel: CampusViewModel) {
                         panY = clampedY
                     }
                 }
-                .pointerInput(scale, panX, panY, isCalibrateMode, locations, selectedLocation, topOverlayPx, bottomOverlayPx) {
-                    // Tap gesture listener for selecting markers or setting calibration point
+                .pointerInput(scale, panX, panY, isCalibrateMode, isGraphMode, locations, nodes, selectedNodeId, selectedLocation, topOverlayPx, bottomOverlayPx) {
+                    // Tap gesture listener for selecting markers, calibration point, or editing graph
                     detectTapGestures { tapOffset ->
                         val tapX = tapOffset.x
                         val tapY = tapOffset.y
@@ -232,14 +249,34 @@ fun MapScreen(viewModel: CampusViewModel) {
                         val relY = imgY / drawHeight
 
                         if (isCalibrateMode) {
-                            // In Calibrate mode, skip marker hit testing and open calibration dialog for any tap on map
+                            // Calibrate mode tap handling
                             if (relX in 0.0..1.0 && relY in 0.0..1.0) {
                                 val roundX = round(relX * 1000.0) / 1000.0
                                 val roundY = round(relY * 1000.0) / 1000.0
                                 viewModel.setCalibrationTarget(roundX, roundY)
                             }
+                        } else if (isGraphMode) {
+                            // Graph Edit mode tap handling
+                            var hitNode: GraphNode? = null
+                            for (node in nodes) {
+                                val dx = (node.x - relX) * drawWidth
+                                val dy = (node.y - relY) * drawHeight
+                                val distPx = sqrt(dx * dx + dy * dy)
+                                val hitRadiusDp = if (node.id == selectedNodeId) 16.dp else 10.dp
+                                if (distPx <= (hitRadiusDp.toPx() / scale)) {
+                                    hitNode = node
+                                    break
+                                }
+                            }
+
+                            if (hitNode != null) {
+                                viewModel.handleNodeTap(hitNode.id)
+                            } else if (relX in 0.0..1.0 && relY in 0.0..1.0) {
+                                // Add a new graph node on empty map tap
+                                viewModel.addNode(relX.toDouble(), relY.toDouble())
+                            }
                         } else {
-                            // In Normal mode, check marker hit test
+                            // Normal Mode: Check location marker hit test
                             var hitLocation: CampusLocation? = null
                             for (loc in locations) {
                                 val dx = (loc.x - relX) * drawWidth
@@ -285,6 +322,68 @@ fun MapScreen(viewModel: CampusViewModel) {
                         )
                 )
 
+                // Render Graph Edges (Thin lines connecting nodes)
+                if (isGraphMode || edges.isNotEmpty()) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        edges.forEach { edge ->
+                            val fromNode = nodes.find { it.id == edge.from }
+                            val toNode = nodes.find { it.id == edge.to }
+                            if (fromNode != null && toNode != null) {
+                                val startX = offsetX0 + (fromNode.x.toFloat() * drawWidth)
+                                val startY = offsetY0 + (fromNode.y.toFloat() * drawHeight)
+                                val endX = offsetX0 + (toNode.x.toFloat() * drawWidth)
+                                val endY = offsetY0 + (toNode.y.toFloat() * drawHeight)
+                                drawLine(
+                                    color = Color(0xFF0288D1),
+                                    start = Offset(startX, startY),
+                                    end = Offset(endX, endY),
+                                    strokeWidth = 2.dp.toPx() / scale
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Render Graph Nodes (Dots on map)
+                if (isGraphMode || nodes.isNotEmpty()) {
+                    nodes.forEach { node ->
+                        val isNodeSelected = node.id == selectedNodeId
+                        val nodeX = offsetX0 + (node.x.toFloat() * drawWidth)
+                        val nodeY = offsetY0 + (node.y.toFloat() * drawHeight)
+                        val nodeSizeDp = if (isNodeSelected) 16.dp else 10.dp
+
+                        val nodeColor = when {
+                            isNodeSelected -> Color(0xFFD32F2F)
+                            node.locationId != null -> Color(0xFF388E3C)
+                            else -> Color(0xFF0288D1)
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .offset {
+                                    IntOffset(
+                                        x = (nodeX - (nodeSizeDp.toPx() / 2f)).toInt(),
+                                        y = (nodeY - (nodeSizeDp.toPx() / 2f)).toInt()
+                                    )
+                                }
+                                .size(nodeSizeDp)
+                                .graphicsLayer {
+                                    scaleX = 1f / scale
+                                    scaleY = 1f / scale
+                                    transformOrigin = TransformOrigin.Center
+                                }
+                                .clip(CircleShape)
+                                .background(if (isNodeSelected) Color(0xFFFFD700) else Color.White)
+                                .padding(if (isNodeSelected) 2.dp else 1.dp)
+                                .clip(CircleShape)
+                                .background(nodeColor)
+                                .clickable(enabled = isGraphMode) {
+                                    viewModel.handleNodeTap(node.id)
+                                }
+                        )
+                    }
+                }
+
                 // Location Markers
                 locations.forEach { location ->
                     val isSelected = location.id == selectedLocation?.id
@@ -328,7 +427,7 @@ fun MapScreen(viewModel: CampusViewModel) {
                             .padding(if (isSelected) 4.dp else 2.dp)
                             .clip(CircleShape)
                             .background(markerColor)
-                            .clickable(enabled = !isCalibrateMode) {
+                            .clickable(enabled = !isCalibrateMode && !isGraphMode) {
                                 viewModel.selectLocation(location)
                                 isRoomsExpanded = false
                             },
@@ -345,14 +444,14 @@ fun MapScreen(viewModel: CampusViewModel) {
             }
         }
 
-        // --- 2. FLOATING TOP SEARCH BAR & CATEGORY CHIPS ---
+        // --- 2. FLOATING TOP SEARCH BAR, SWITCHES & CATEGORY CHIPS ---
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
                 .align(Alignment.TopCenter)
         ) {
-            // Top Search Input Box with Calibrate Mode Switch
+            // Top Search Input Box with Calibrate and Graph Switches
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -395,24 +494,49 @@ fun MapScreen(viewModel: CampusViewModel) {
 
                         Spacer(modifier = Modifier.width(8.dp))
 
-                        // Calibrate Switch
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "Calibrate",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isCalibrateMode) MaterialTheme.colorScheme.primary else Color.Gray
-                            )
-                            Switch(
-                                checked = isCalibrateMode,
-                                onCheckedChange = { viewModel.toggleCalibrateMode(it) },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = Color.White,
-                                    checkedTrackColor = MaterialTheme.colorScheme.primary
-                                ),
-                                modifier = Modifier.size(width = 40.dp, height = 24.dp)
-                            )
+                        // Control Mode Switches (Calibrate & Graph)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            // Calibrate Switch
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "Calib",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isCalibrateMode) MaterialTheme.colorScheme.primary else Color.Gray
+                                )
+                                Switch(
+                                    checked = isCalibrateMode,
+                                    onCheckedChange = { viewModel.toggleCalibrateMode(it) },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = MaterialTheme.colorScheme.primary
+                                    ),
+                                    modifier = Modifier.size(width = 36.dp, height = 24.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(6.dp))
+
+                            // Graph Switch
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "Graph",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isGraphMode) MaterialTheme.colorScheme.primary else Color.Gray
+                                )
+                                Switch(
+                                    checked = isGraphMode,
+                                    onCheckedChange = { viewModel.toggleGraphMode(it) },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = MaterialTheme.colorScheme.primary
+                                    ),
+                                    modifier = Modifier.size(width = 36.dp, height = 24.dp)
+                                )
+                            }
                         }
                     }
 
@@ -435,6 +559,147 @@ fun MapScreen(viewModel: CampusViewModel) {
                                     labelColor = MaterialTheme.colorScheme.onSurface
                                 )
                             )
+                        }
+                    }
+                }
+            }
+
+            // Floating Graph Edit Toolbar (Shown ONLY when Graph Mode is ON)
+            if (isGraphMode) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+                ) {
+                    Column(modifier = Modifier.padding(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            // Node & Edge Counter
+                            Text(
+                                text = "${nodes.size} nodes, ${edges.size} edges",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                // Undo Action Button
+                                IconButton(
+                                    onClick = { viewModel.undoGraphAction() },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Undo,
+                                        contentDescription = "Undo",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+
+                                // Delete Selected Node Button
+                                IconButton(
+                                    onClick = { viewModel.deleteSelectedNode() },
+                                    enabled = selectedNodeId != null,
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Delete Node",
+                                        tint = if (selectedNodeId != null) Color.Red else Color.LightGray
+                                    )
+                                }
+
+                                // Copy Graph JSON Button
+                                IconButton(
+                                    onClick = {
+                                        val jsonStr = viewModel.generateGraphJson()
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                        val clip = ClipData.newPlainText("Graph JSON", jsonStr)
+                                        clipboard.setPrimaryClip(clip)
+                                        Log.d("GraphJSON", jsonStr)
+                                        Toast.makeText(context, "Copied Graph JSON to clipboard!", Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ContentCopy,
+                                        contentDescription = "Copy JSON",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+
+                        // Hint Line for Graph Mode
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Tap map: add + connect. Tap selected dot: end chain.",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 10.sp,
+                            color = Color.Gray
+                        )
+
+                        // Link Selected Node to Location Dropdown Row
+                        if (selectedNodeId != null) {
+                            val selectedNode = nodes.find { it.id == selectedNodeId }
+                            val linkedLocation = locations.find { it.id == selectedNode?.locationId }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Node ${selectedNodeId}: ${linkedLocation?.name ?: "Unlinked"}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.DarkGray
+                                )
+
+                                var linkDropdownExpanded by remember { mutableStateOf(false) }
+                                Box {
+                                    OutlinedButton(
+                                        onClick = { linkDropdownExpanded = true },
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                        modifier = Modifier.height(30.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Link,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(text = if (linkedLocation != null) "Change Link" else "Link Loc", fontSize = 11.sp)
+                                    }
+
+                                    DropdownMenu(
+                                        expanded = linkDropdownExpanded,
+                                        onDismissRequest = { linkDropdownExpanded = false }
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("None (Unlink)") },
+                                            onClick = {
+                                                viewModel.linkSelectedNodeToLocation(null)
+                                                linkDropdownExpanded = false
+                                            }
+                                        )
+                                        locations.forEach { loc ->
+                                            DropdownMenuItem(
+                                                text = { Text(loc.name) },
+                                                onClick = {
+                                                    viewModel.linkSelectedNodeToLocation(loc.id)
+                                                    linkDropdownExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -664,11 +929,32 @@ fun MapScreen(viewModel: CampusViewModel) {
                 }
             }
 
+            var cardOffsetY by remember(loc.id) { mutableFloatStateOf(0f) }
+
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
-                    .padding(16.dp),
+                    .padding(16.dp)
+                    .offset { IntOffset(0, cardOffsetY.roundToInt()) }
+                    .pointerInput(loc.id) {
+                        detectVerticalDragGestures(
+                            onDragEnd = {
+                                if (cardOffsetY > 60.dp.toPx()) {
+                                    viewModel.selectLocation(null)
+                                    isRoomsExpanded = false
+                                }
+                                cardOffsetY = 0f
+                            },
+                            onDragCancel = {
+                                cardOffsetY = 0f
+                            },
+                            onVerticalDrag = { change, dragAmount ->
+                                change.consume()
+                                cardOffsetY = (cardOffsetY + dragAmount).coerceAtLeast(0f)
+                            }
+                        )
+                    },
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
@@ -709,97 +995,100 @@ fun MapScreen(viewModel: CampusViewModel) {
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = loc.description,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.DarkGray
-                    )
+                    // Hide description and action buttons when in Graph mode to keep card compact
+                    if (!isGraphMode) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = loc.description,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.DarkGray
+                        )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
 
-                    // Buttons Row: Directions & View Rooms
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                Toast.makeText(context, "Directions feature coming soon!", Toast.LENGTH_SHORT).show()
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary
-                            ),
-                            shape = RoundedCornerShape(10.dp)
+                        // Buttons Row: Directions & View Rooms
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Navigation,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Directions")
-                        }
-
-                        if (loc.category.equals("Building", ignoreCase = true) && buildingRooms.isNotEmpty()) {
-                            OutlinedButton(
-                                onClick = { isRoomsExpanded = !isRoomsExpanded },
+                            Button(
+                                onClick = {
+                                    Toast.makeText(context, "Directions feature coming soon!", Toast.LENGTH_SHORT).show()
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary
+                                ),
                                 shape = RoundedCornerShape(10.dp)
                             ) {
-                                Text("View rooms (${buildingRooms.size})")
-                                Spacer(modifier = Modifier.width(4.dp))
                                 Icon(
-                                    imageVector = if (isRoomsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                    contentDescription = null
+                                    imageVector = Icons.Default.Navigation,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
                                 )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Directions")
+                            }
+
+                            if (loc.category.equals("Building", ignoreCase = true) && buildingRooms.isNotEmpty()) {
+                                OutlinedButton(
+                                    onClick = { isRoomsExpanded = !isRoomsExpanded },
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Text("View rooms (${buildingRooms.size})")
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(
+                                        imageVector = if (isRoomsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        contentDescription = null
+                                    )
+                                }
                             }
                         }
-                    }
 
-                    // Expanded Room List grouped by floor
-                    AnimatedVisibility(visible = isRoomsExpanded && buildingRooms.isNotEmpty()) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(180.dp)
-                                .padding(top = 12.dp)
-                        ) {
-                            Text(
-                                text = "Building Rooms",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            val groupedRooms = buildingRooms.groupBy { it.floor }
-                            LazyColumn(
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                        // Expanded Room List grouped by floor
+                        AnimatedVisibility(visible = isRoomsExpanded && buildingRooms.isNotEmpty()) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp)
+                                    .padding(top = 12.dp)
                             ) {
-                                groupedRooms.forEach { (floor, roomsOnFloor) ->
-                                    item {
-                                        Text(
-                                            text = "Floor $floor",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.Gray,
-                                            modifier = Modifier.padding(vertical = 2.dp)
-                                        )
-                                        roomsOnFloor.forEach { room ->
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(vertical = 2.dp, horizontal = 4.dp),
-                                                horizontalArrangement = Arrangement.SpaceBetween
-                                            ) {
-                                                Text(
-                                                    text = "• ${room.name}",
-                                                    style = MaterialTheme.typography.bodyMedium
-                                                )
-                                                Text(
-                                                    text = room.type,
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = Color.Gray
-                                                )
+                                Text(
+                                    text = "Building Rooms",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                val groupedRooms = buildingRooms.groupBy { it.floor }
+                                LazyColumn(
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    groupedRooms.forEach { (floor, roomsOnFloor) ->
+                                        item {
+                                            Text(
+                                                text = "Floor $floor",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.Gray,
+                                                modifier = Modifier.padding(vertical = 2.dp)
+                                            )
+                                            roomsOnFloor.forEach { room ->
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(vertical = 2.dp, horizontal = 4.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Text(
+                                                        text = "• ${room.name}",
+                                                        style = MaterialTheme.typography.bodyMedium
+                                                    )
+                                                    Text(
+                                                        text = room.type,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = Color.Gray
+                                                    )
+                                                }
                                             }
                                         }
                                     }
