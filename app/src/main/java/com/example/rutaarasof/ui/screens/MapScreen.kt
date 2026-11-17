@@ -14,6 +14,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -32,6 +33,7 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -43,13 +45,16 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DoorFront
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.TripOrigin
 import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -87,13 +92,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -137,7 +149,7 @@ private fun clampPan(
     return Pair(clampedX, clampedY)
 }
 
-// Single-Screen Map View with pinch-to-zoom, pan, search, location card, calibration, and graph editing mode
+// Single-Screen Map View with pinch-to-zoom, pan, search, location card, calibration, graph editing, and walking routing
 @Composable
 fun MapScreen(viewModel: CampusViewModel) {
     val context = LocalContext.current
@@ -159,6 +171,14 @@ fun MapScreen(viewModel: CampusViewModel) {
     val nodes by viewModel.nodes.collectAsState()
     val edges by viewModel.edges.collectAsState()
     val selectedNodeId by viewModel.selectedNodeId.collectAsState()
+
+    // Routing and Pick Start states
+    val startNodeId by viewModel.startNodeId.collectAsState()
+    val startLabel by viewModel.startLabel.collectAsState()
+    val routeDestinationId by viewModel.routeDestinationId.collectAsState()
+    val isPickStartMode by viewModel.isPickStartMode.collectAsState()
+    val activeRoute by viewModel.activeRoute.collectAsState()
+    val routeError by viewModel.routeError.collectAsState()
 
     // Measure heights for top and bottom overlays
     val topOverlayPx = with(density) { 180.dp.toPx() }
@@ -235,8 +255,8 @@ fun MapScreen(viewModel: CampusViewModel) {
                         panY = clampedY
                     }
                 }
-                .pointerInput(scale, panX, panY, isCalibrateMode, isGraphMode, locations, nodes, selectedNodeId, selectedLocation, topOverlayPx, bottomOverlayPx) {
-                    // Tap gesture listener for selecting markers, calibration point, or editing graph
+                .pointerInput(scale, panX, panY, isCalibrateMode, isGraphMode, isPickStartMode, locations, nodes, selectedNodeId, selectedLocation, topOverlayPx, bottomOverlayPx) {
+                    // Tap gesture listener for selecting markers, calibration point, graph editing, or picking start
                     detectTapGestures { tapOffset ->
                         val tapX = tapOffset.x
                         val tapY = tapOffset.y
@@ -274,6 +294,16 @@ fun MapScreen(viewModel: CampusViewModel) {
                             } else if (relX in 0.0..1.0 && relY in 0.0..1.0) {
                                 // Add a new graph node on empty map tap
                                 viewModel.addNode(relX.toDouble(), relY.toDouble())
+                            }
+                        } else if (isPickStartMode) {
+                            // Pick Start Mode tap handling: set nearest graph node as start
+                            if (relX in 0.0..1.0 && relY in 0.0..1.0) {
+                                val success = viewModel.pickNearestStartNode(relX.toDouble(), relY.toDouble(), imageWidth, imageHeight)
+                                if (success) {
+                                    Toast.makeText(context, "Start set to ${viewModel.startLabel.value}", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Tap closer to a walkway", Toast.LENGTH_SHORT).show()
+                                }
                             }
                         } else {
                             // Normal Mode: Check location marker hit test
@@ -322,8 +352,109 @@ fun MapScreen(viewModel: CampusViewModel) {
                         )
                 )
 
-                // Render Graph Edges (Thin lines connecting nodes)
-                if (isGraphMode || edges.isNotEmpty()) {
+                // Render Active Walking Route Polyline & Destination End Pin
+                if (activeRoute != null && activeRoute!!.nodes.size >= 2) {
+                    val routeNodes = activeRoute!!.nodes
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val routePath = Path()
+                        routeNodes.forEachIndexed { index, node ->
+                            val nx = offsetX0 + (node.x.toFloat() * drawWidth)
+                            val ny = offsetY0 + (node.y.toFloat() * drawHeight)
+                            if (index == 0) {
+                                routePath.moveTo(nx, ny)
+                            } else {
+                                routePath.lineTo(nx, ny)
+                            }
+                        }
+
+                        drawPath(
+                            path = routePath,
+                            color = Color(0xFF1565C0), // Vibrant Royal Blue Route Line
+                            style = Stroke(
+                                width = 6.dp.toPx() / scale,
+                                cap = StrokeCap.Round,
+                                join = StrokeJoin.Round
+                            )
+                        )
+                    }
+
+                    // End Route Pin (Crimson Red)
+                    val lastNode = routeNodes.last()
+                    val endX = offsetX0 + (lastNode.x.toFloat() * drawWidth)
+                    val endY = offsetY0 + (lastNode.y.toFloat() * drawHeight)
+                    val endMarkerSizeDp = 28.dp
+
+                    Box(
+                        modifier = Modifier
+                            .offset {
+                                IntOffset(
+                                    x = (endX - (endMarkerSizeDp.toPx() / 2f)).toInt(),
+                                    y = (endY - (endMarkerSizeDp.toPx() / 2f)).toInt()
+                                )
+                            }
+                            .size(endMarkerSizeDp)
+                            .graphicsLayer {
+                                scaleX = 1f / scale
+                                scaleY = 1f / scale
+                                transformOrigin = TransformOrigin.Center
+                            }
+                            .clip(CircleShape)
+                            .background(Color.White)
+                            .padding(2.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFC62828)), // Crimson Red End Pin
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Flag,
+                            contentDescription = "End Pin",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+
+                // Render Green Start Pin whenever startNodeId is set
+                if (startNodeId != null) {
+                    val startNode = nodes.find { it.id == startNodeId }
+                    if (startNode != null) {
+                        val startX = offsetX0 + (startNode.x.toFloat() * drawWidth)
+                        val startY = offsetY0 + (startNode.y.toFloat() * drawHeight)
+                        val startMarkerSizeDp = 28.dp
+
+                        Box(
+                            modifier = Modifier
+                                .offset {
+                                    IntOffset(
+                                        x = (startX - (startMarkerSizeDp.toPx() / 2f)).toInt(),
+                                        y = (startY - (startMarkerSizeDp.toPx() / 2f)).toInt()
+                                    )
+                                }
+                                .size(startMarkerSizeDp)
+                                .graphicsLayer {
+                                    scaleX = 1f / scale
+                                    scaleY = 1f / scale
+                                    transformOrigin = TransformOrigin.Center
+                                }
+                                .clip(CircleShape)
+                                .background(Color.White)
+                                .padding(2.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF2E7D32)), // Green Start Pin
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = "Start Pin",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Render Graph Edges (Thin lines, ONLY in Graph Mode)
+                if (isGraphMode) {
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         edges.forEach { edge ->
                             val fromNode = nodes.find { it.id == edge.from }
@@ -344,8 +475,8 @@ fun MapScreen(viewModel: CampusViewModel) {
                     }
                 }
 
-                // Render Graph Nodes (Dots on map)
-                if (isGraphMode || nodes.isNotEmpty()) {
+                // Render Graph Nodes (Dots on map, ONLY in Graph Mode)
+                if (isGraphMode) {
                     nodes.forEach { node ->
                         val isNodeSelected = node.id == selectedNodeId
                         val nodeX = offsetX0 + (node.x.toFloat() * drawWidth)
@@ -405,7 +536,10 @@ fun MapScreen(viewModel: CampusViewModel) {
                         else -> MaterialTheme.colorScheme.secondary
                     }
 
-                    // Render Marker Pin with counter-scaling so screen size remains constant
+                    // Show label for selected marker at any zoom, or for all markers when scale >= 2.0x (hidden in Calib/Graph/PickStart modes)
+                    val shouldShowLabel = (!isCalibrateMode && !isGraphMode && !isPickStartMode) && (isSelected || scale >= 2.0f)
+
+                    // 1. Render Marker Circle as its own Box (position is 100% fixed and identical regardless of label)
                     Box(
                         modifier = Modifier
                             .offset {
@@ -427,7 +561,7 @@ fun MapScreen(viewModel: CampusViewModel) {
                             .padding(if (isSelected) 4.dp else 2.dp)
                             .clip(CircleShape)
                             .background(markerColor)
-                            .clickable(enabled = !isCalibrateMode && !isGraphMode) {
+                            .clickable(enabled = !isCalibrateMode && !isGraphMode && !isPickStartMode) {
                                 viewModel.selectLocation(location)
                                 isRoomsExpanded = false
                             },
@@ -439,6 +573,49 @@ fun MapScreen(viewModel: CampusViewModel) {
                             tint = Color.White,
                             modifier = Modifier.size(iconSizeDp)
                         )
+                    }
+
+                    // 2. Render Name Label as a separate sibling element anchored below the marker circle
+                    if (shouldShowLabel) {
+                        val gapPx = with(density) { (markerSizeDp / 2f + 2.dp).toPx().roundToInt() }
+
+                        Box(
+                            modifier = Modifier
+                                .offset {
+                                    IntOffset(
+                                        x = markerX.toInt(),
+                                        y = markerY.toInt()
+                                    )
+                                }
+                                .graphicsLayer {
+                                    scaleX = 1f / scale
+                                    scaleY = 1f / scale
+                                    transformOrigin = TransformOrigin(0f, 0f)
+                                }
+                                .layout { measurable, _ ->
+                                    val p = measurable.measure(Constraints())
+                                    layout(0, 0) {
+                                        p.place(-p.width / 2, gapPx)
+                                    }
+                                }
+                        ) {
+                            Surface(
+                                color = Color.White.copy(alpha = 0.88f),
+                                shape = RoundedCornerShape(4.dp),
+                                shadowElevation = 1.dp
+                            ) {
+                                Text(
+                                    text = location.name,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 10.sp,
+                                    color = Color(0xFF333333),
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -559,6 +736,48 @@ fun MapScreen(viewModel: CampusViewModel) {
                                     labelColor = MaterialTheme.colorScheme.onSurface
                                 )
                             )
+                        }
+                    }
+                }
+            }
+
+            // Top Banner for Pick Start Mode
+            if (isPickStartMode) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.TripOrigin,
+                                contentDescription = "Pick Start",
+                                tint = Color(0xFF2E7D32),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Tap the map to set your start",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1B5E20)
+                            )
+                        }
+
+                        TextButton(
+                            onClick = { viewModel.togglePickStartMode(false) },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text("Cancel", color = Color(0xFFC62828), fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -960,6 +1179,7 @@ fun MapScreen(viewModel: CampusViewModel) {
                 elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
+                    // Header Row with Location Name, Category, & Close Button
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -970,7 +1190,7 @@ fun MapScreen(viewModel: CampusViewModel) {
                                 text = loc.name,
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = Color.Black
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Surface(
@@ -995,24 +1215,140 @@ fun MapScreen(viewModel: CampusViewModel) {
                         }
                     }
 
+                    // Display Start Location Subtitle
+                    if (startNodeId != null && startLabel != null) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.TripOrigin,
+                                contentDescription = null,
+                                tint = Color(0xFF2E7D32),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Start: $startLabel",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF2E7D32),
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            IconButton(
+                                onClick = { viewModel.clearStartLocation() },
+                                modifier = Modifier.size(20.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = "Clear Start",
+                                    tint = Color.Gray,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Route Summary Info (Shown ONLY for the target destination)
+                    if (activeRoute != null && routeDestinationId == loc.id) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Surface(
+                            color = Color(0xFFE3F2FD),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Navigation,
+                                    contentDescription = null,
+                                    tint = Color(0xFF1565C0),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "${round(activeRoute!!.totalMeters).toInt()} m, about ${activeRoute!!.durationMinutes} min",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1565C0)
+                                )
+                            }
+                        }
+                    } else if (routeError != null) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = routeError!!,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Red,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
                     // Hide description and action buttons when in Graph mode to keep card compact
                     if (!isGraphMode) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = loc.description,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.DarkGray
-                        )
+                        if (activeRoute == null) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = loc.description,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.DarkGray
+                            )
+                        }
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Buttons Row: Directions & View Rooms
+                        // Horizontally Scrollable Action Buttons Row
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // "Set as start" Button
+                            OutlinedButton(
+                                onClick = {
+                                    val ok = viewModel.setStartLocation(loc)
+                                    if (ok) {
+                                        Toast.makeText(context, "Set ${loc.name} as start", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "Location not connected to map graph", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.TripOrigin,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Set as start", fontSize = 12.sp, maxLines = 1)
+                            }
+
+                            // "Pick start" Button
+                            OutlinedButton(
+                                onClick = {
+                                    if (!isCalibrateMode && !isGraphMode) {
+                                        viewModel.togglePickStartMode(true)
+                                    }
+                                },
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Place,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Pick start", fontSize = 12.sp, maxLines = 1)
+                            }
+
+                            // "Directions" Button
                             Button(
                                 onClick = {
-                                    Toast.makeText(context, "Directions feature coming soon!", Toast.LENGTH_SHORT).show()
+                                    viewModel.calculateRoute(loc, imageWidth, imageHeight)
                                 },
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.primary
@@ -1022,19 +1358,36 @@ fun MapScreen(viewModel: CampusViewModel) {
                                 Icon(
                                     imageVector = Icons.Default.Navigation,
                                     contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Directions")
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Directions", fontSize = 12.sp, maxLines = 1)
                             }
 
+                            // "Clear route" Button (shown when route is active)
+                            if (activeRoute != null) {
+                                OutlinedButton(
+                                    onClick = { viewModel.clearRoute() },
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Clear,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Clear route", fontSize = 12.sp, maxLines = 1)
+                                }
+                            }
+
+                            // "View rooms" Button
                             if (loc.category.equals("Building", ignoreCase = true) && buildingRooms.isNotEmpty()) {
                                 OutlinedButton(
                                     onClick = { isRoomsExpanded = !isRoomsExpanded },
                                     shape = RoundedCornerShape(10.dp)
                                 ) {
-                                    Text("View rooms (${buildingRooms.size})")
-                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Rooms (${buildingRooms.size})", fontSize = 12.sp, maxLines = 1)
+                                    Spacer(modifier = Modifier.width(2.dp))
                                     Icon(
                                         imageVector = if (isRoomsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                                         contentDescription = null
@@ -1069,7 +1422,7 @@ fun MapScreen(viewModel: CampusViewModel) {
                                                 text = "Floor $floor",
                                                 style = MaterialTheme.typography.labelMedium,
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color.Gray,
+                                                color = Color.DarkGray,
                                                 modifier = Modifier.padding(vertical = 2.dp)
                                             )
                                             roomsOnFloor.forEach { room ->
@@ -1081,7 +1434,8 @@ fun MapScreen(viewModel: CampusViewModel) {
                                                 ) {
                                                     Text(
                                                         text = "• ${room.name}",
-                                                        style = MaterialTheme.typography.bodyMedium
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        color = Color.Black
                                                     )
                                                     Text(
                                                         text = room.type,
@@ -1095,6 +1449,60 @@ fun MapScreen(viewModel: CampusViewModel) {
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        // --- 4b. FLOATING ROUTE SUMMARY CHIP (shown when bottom card is closed) ---
+        if (activeRoute != null && selectedLocation == null) {
+            val destLoc = locations.find { it.id == routeDestinationId }
+            val destName = destLoc?.name ?: "Destination"
+            val routeMeters = round(activeRoute!!.totalMeters).toInt()
+            val routeMin = activeRoute!!.durationMinutes
+
+            Card(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(16.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .clickable {
+                            if (destLoc != null) {
+                                viewModel.selectLocation(destLoc)
+                            }
+                        }
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Navigation,
+                        contentDescription = null,
+                        tint = Color(0xFF1565C0),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "$destName: $routeMeters m, about $routeMin min",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1565C0)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(
+                        onClick = { viewModel.clearRoute() },
+                        modifier = Modifier.size(20.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Clear Route",
+                            tint = Color.Gray,
+                            modifier = Modifier.size(16.dp)
+                        )
                     }
                 }
             }

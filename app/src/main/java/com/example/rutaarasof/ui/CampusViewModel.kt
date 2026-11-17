@@ -7,7 +7,9 @@ import com.example.rutaarasof.data.model.CampusLocation
 import com.example.rutaarasof.data.model.GraphData
 import com.example.rutaarasof.data.model.GraphEdge
 import com.example.rutaarasof.data.model.GraphNode
+import com.example.rutaarasof.data.model.METERS_PER_PIXEL
 import com.example.rutaarasof.data.model.Room
+import com.example.rutaarasof.data.model.RouteResult
 import com.example.rutaarasof.data.model.SearchResult
 import com.example.rutaarasof.data.repository.CampusRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,9 +18,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.util.Locale
+import java.util.PriorityQueue
 import kotlin.math.round
+import kotlin.math.sqrt
 
-// Extended ViewModel managing map navigation, search, calibration mode, and graph edit mode
+// Maximum allowed distance in image pixels from tap to nearest node for setting start point
+const val MAX_PICK_START_DISTANCE_PX = 250f
+
+// Extended ViewModel managing map navigation, search, calibration mode, graph edit mode, and walking routing
 class CampusViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = CampusRepository(application.applicationContext)
@@ -73,6 +80,25 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
     private val _selectedNodeId = MutableStateFlow<String?>(null)
     val selectedNodeId: StateFlow<String?> = _selectedNodeId.asStateFlow()
 
+    // --- ROUTING & PICK START STATEFLOWS ---
+    private val _startNodeId = MutableStateFlow<String?>(null)
+    val startNodeId: StateFlow<String?> = _startNodeId.asStateFlow()
+
+    private val _startLabel = MutableStateFlow<String?>(null)
+    val startLabel: StateFlow<String?> = _startLabel.asStateFlow()
+
+    private val _routeDestinationId = MutableStateFlow<String?>(null)
+    val routeDestinationId: StateFlow<String?> = _routeDestinationId.asStateFlow()
+
+    private val _isPickStartMode = MutableStateFlow(false)
+    val isPickStartMode: StateFlow<Boolean> = _isPickStartMode.asStateFlow()
+
+    private val _activeRoute = MutableStateFlow<RouteResult?>(null)
+    val activeRoute: StateFlow<RouteResult?> = _activeRoute.asStateFlow()
+
+    private val _routeError = MutableStateFlow<String?>(null)
+    val routeError: StateFlow<String?> = _routeError.asStateFlow()
+
     // Undo history stack
     private val history = ArrayDeque<GraphData>()
 
@@ -123,11 +149,12 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
         return repository.getRoomsByBuilding(buildingId)
     }
 
-    // Toggle calibrate mode switch ON/OFF (mutually exclusive with Graph Mode)
+    // Toggle calibrate mode switch ON/OFF (mutually exclusive with Graph Mode & Pick Start Mode)
     fun toggleCalibrateMode(enabled: Boolean) {
         _isCalibrateMode.value = enabled
         if (enabled) {
             _isGraphMode.value = false
+            _isPickStartMode.value = false
             _selectedNodeId.value = null
         } else {
             _calibrationTarget.value = null
@@ -146,11 +173,12 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
 
     // --- GRAPH EDIT MODE METHODS ---
 
-    // Toggle Graph Edit Mode switch ON/OFF (mutually exclusive with Calibrate Mode)
+    // Toggle Graph Edit Mode switch ON/OFF (mutually exclusive with Calibrate Mode & Pick Start Mode)
     fun toggleGraphMode(enabled: Boolean) {
         _isGraphMode.value = enabled
         if (enabled) {
             _isCalibrateMode.value = false
+            _isPickStartMode.value = false
             _calibrationTarget.value = null
         } else {
             _selectedNodeId.value = null
@@ -280,6 +308,224 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
         val edgesStr = edgesJsonList.joinToString(",")
 
         return "{\"nodes\":[$nodesStr],\"edges\":[$edgesStr]}"
+    }
+
+    // --- WALKING ROUTING & PICK START METHODS ---
+
+    // Toggle Pick Start Mode ON/OFF
+    fun togglePickStartMode(enabled: Boolean) {
+        _isPickStartMode.value = enabled
+        if (enabled) {
+            _isCalibrateMode.value = false
+            _isGraphMode.value = false
+        }
+    }
+
+    // Set a CampusLocation as the starting point (finds node linked to location)
+    fun setStartLocation(location: CampusLocation): Boolean {
+        val linkedNode = _nodes.value.find { it.locationId.equals(location.id, ignoreCase = true) }
+        if (linkedNode != null) {
+            _startNodeId.value = linkedNode.id
+            _startLabel.value = location.name
+            clearRoute()
+            return true
+        } else {
+            clearRoute()
+            _routeError.value = "Route not available"
+            return false
+        }
+    }
+
+    // Directly set start node ID and label string
+    fun setStartNode(nodeId: String, label: String) {
+        _startNodeId.value = nodeId
+        _startLabel.value = label
+        clearRoute()
+    }
+
+    // Clear starting location/node
+    fun clearStartLocation() {
+        _startNodeId.value = null
+        _startLabel.value = null
+        clearRoute()
+    }
+
+    // Clear active route polyline and destination
+    fun clearRoute() {
+        _activeRoute.value = null
+        _routeDestinationId.value = null
+        _routeError.value = null
+    }
+
+    // Pick nearest graph node to relative (relX, relY) map tap (must be within MAX_PICK_START_DISTANCE_PX image pixels)
+    fun pickNearestStartNode(relX: Double, relY: Double, imageWidth: Float, imageHeight: Float): Boolean {
+        if (_nodes.value.isEmpty()) return false
+
+        var minDistanceSq = Float.MAX_VALUE
+        var nearestNode: GraphNode? = null
+
+        for (node in _nodes.value) {
+            val dx = (node.x - relX).toFloat() * imageWidth
+            val dy = (node.y - relY).toFloat() * imageHeight
+            val distSq = dx * dx + dy * dy
+            if (distSq < minDistanceSq) {
+                minDistanceSq = distSq
+                nearestNode = node
+            }
+        }
+
+        val maxDistSq = MAX_PICK_START_DISTANCE_PX * MAX_PICK_START_DISTANCE_PX
+        if (nearestNode == null || minDistanceSq > maxDistSq) {
+            // Nearest node is farther than 250 image pixels: do not set start, stay in pick mode, return false
+            return false
+        }
+
+        val label = if (nearestNode.locationId != null) {
+            val loc = repository.getLocationById(nearestNode.locationId)
+            loc?.name ?: "Custom point"
+        } else {
+            "Custom point"
+        }
+
+        setStartNode(nearestNode.id, label)
+        _isPickStartMode.value = false
+        return true
+    }
+
+    // Calculate walking route from startNodeId to destinationLocation using Dijkstra algorithm
+    fun calculateRoute(destinationLocation: CampusLocation, mapWidth: Float, mapHeight: Float) {
+        val sNodeId = _startNodeId.value
+        if (sNodeId == null) {
+            _activeRoute.value = null
+            _routeDestinationId.value = null
+            _routeError.value = "Set a start location first"
+            return
+        }
+
+        // Find graph node linked to destination location
+        val endNode = _nodes.value.find { it.locationId.equals(destinationLocation.id, ignoreCase = true) }
+
+        if (endNode != null && sNodeId == endNode.id) {
+            // Start node is the same as destination's node
+            _activeRoute.value = null
+            _routeDestinationId.value = null
+            _routeError.value = "You're already here"
+            return
+        }
+
+        val result = findRouteFromNode(sNodeId, destinationLocation.id, mapWidth, mapHeight)
+        if (result != null) {
+            _activeRoute.value = result
+            _routeDestinationId.value = destinationLocation.id
+            _routeError.value = null
+        } else {
+            _activeRoute.value = null
+            _routeDestinationId.value = null
+            _routeError.value = "Route not available"
+        }
+    }
+
+    // Core Dijkstra pathfinder between startNodeId and endNodeId
+    private fun findRouteBetweenNodes(
+        startNodeId: String,
+        endNodeId: String,
+        mapWidth: Float,
+        mapHeight: Float
+    ): RouteResult? {
+        val currentNodes = _nodes.value
+        val currentEdges = _edges.value
+
+        if (currentNodes.isEmpty() || currentEdges.isEmpty()) return null
+
+        val nodeMap = currentNodes.associateBy { it.id }
+        val startNode = nodeMap[startNodeId] ?: return null
+        val endNode = nodeMap[endNodeId] ?: return null
+
+        if (startNode.id == endNode.id) {
+            return RouteResult(nodes = listOf(startNode), totalMeters = 0f)
+        }
+
+        // Build adjacency list for undirected graph: nodeId -> List<Pair<neighborId, distanceMeters>>
+        val adjacency = mutableMapOf<String, MutableList<Pair<String, Float>>>()
+        for (edge in currentEdges) {
+            val n1 = nodeMap[edge.from] ?: continue
+            val n2 = nodeMap[edge.to] ?: continue
+
+            val dx = (n2.x - n1.x).toFloat() * mapWidth
+            val dy = (n2.y - n1.y).toFloat() * mapHeight
+            val distPx = sqrt(dx * dx + dy * dy)
+            val distMeters = distPx * METERS_PER_PIXEL
+
+            adjacency.getOrPut(edge.from) { mutableListOf() }.add(Pair(edge.to, distMeters))
+            adjacency.getOrPut(edge.to) { mutableListOf() }.add(Pair(edge.from, distMeters))
+        }
+
+        // Dijkstra PriorityQueue
+        val distances = mutableMapOf<String, Float>()
+        val previous = mutableMapOf<String, String>()
+        val priorityQueue = PriorityQueue<Pair<String, Float>>(compareBy { it.second })
+
+        distances[startNode.id] = 0f
+        priorityQueue.add(Pair(startNode.id, 0f))
+
+        while (priorityQueue.isNotEmpty()) {
+            val (u, currentDist) = priorityQueue.poll() ?: break
+
+            if (u == endNode.id) break // Destination reached
+
+            if (currentDist > (distances[u] ?: Float.POSITIVE_INFINITY)) continue
+
+            val neighbors = adjacency[u] ?: continue
+            for ((v, weight) in neighbors) {
+                val newDist = currentDist + weight
+                if (newDist < (distances[v] ?: Float.POSITIVE_INFINITY)) {
+                    distances[v] = newDist
+                    previous[v] = u
+                    priorityQueue.add(Pair(v, newDist))
+                }
+            }
+        }
+
+        val totalDist = distances[endNode.id] ?: return null
+        if (totalDist == Float.POSITIVE_INFINITY) return null
+
+        // Reconstruct path from destination back to start
+        val pathNodeIds = mutableListOf<String>()
+        var current: String? = endNode.id
+        while (current != null) {
+            pathNodeIds.add(current)
+            current = previous[current]
+        }
+        pathNodeIds.reverse()
+
+        val pathNodes = pathNodeIds.mapNotNull { nodeMap[it] }
+        if (pathNodes.isEmpty()) return null
+
+        return RouteResult(nodes = pathNodes, totalMeters = totalDist)
+    }
+
+    // Find route from startNodeId to endLocationId
+    fun findRouteFromNode(
+        startNodeId: String,
+        endLocationId: String,
+        mapWidth: Float,
+        mapHeight: Float
+    ): RouteResult? {
+        val endNode = _nodes.value.find { it.locationId.equals(endLocationId, ignoreCase = true) }
+            ?: return null
+        return findRouteBetweenNodes(startNodeId, endNode.id, mapWidth, mapHeight)
+    }
+
+    // Find route from startLocationId to endLocationId (reuses findRouteBetweenNodes)
+    fun findRoute(
+        startLocationId: String,
+        endLocationId: String,
+        mapWidth: Float,
+        mapHeight: Float
+    ): RouteResult? {
+        val startNode = _nodes.value.find { it.locationId.equals(startLocationId, ignoreCase = true) }
+            ?: return null
+        return findRouteFromNode(startNode.id, endLocationId, mapWidth, mapHeight)
     }
 
     // Push current graph state to undo history before making changes
