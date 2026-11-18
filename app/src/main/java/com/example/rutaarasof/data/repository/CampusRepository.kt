@@ -40,8 +40,7 @@ class CampusRepository(private val context: Context) {
     fun getRoomsByBuilding(buildingId: String): List<Room> {
         return rooms.filter { it.buildingId.equals(buildingId, ignoreCase = true) }
     }
-
-    // Case-insensitive search for locations by name, category, or description
+    // For searching a location
     fun searchLocations(query: String): List<CampusLocation> {
         if (query.isBlank()) return locations
         val q = query.trim().lowercase()
@@ -51,8 +50,7 @@ class CampusRepository(private val context: Context) {
             it.description.lowercase().contains(q)
         }
     }
-
-    // Case-insensitive search for rooms by name or type
+    // For searching a room
     fun searchRooms(query: String): List<Room> {
         if (query.isBlank()) return rooms
         val q = query.trim().lowercase()

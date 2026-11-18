@@ -667,7 +667,9 @@ fun MapScreen(viewModel: CampusViewModel) {
                             shape = RoundedCornerShape(12.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = Color.LightGray
+                                unfocusedBorderColor = Color.LightGray,
+                                focusedTextColor = Color.Black,
+                                unfocusedTextColor = Color.Black
                             )
                         )
 
@@ -993,12 +995,13 @@ fun MapScreen(viewModel: CampusViewModel) {
                                             Text(
                                                 text = result.location.name,
                                                 style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = FontWeight.Bold
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.Black
                                             )
                                             Text(
                                                 text = result.location.description,
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = Color.Gray
+                                                color = Color.DarkGray
                                             )
                                         }
                                     }
@@ -1051,12 +1054,13 @@ fun MapScreen(viewModel: CampusViewModel) {
                                             Text(
                                                 text = result.room.name,
                                                 style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = FontWeight.Bold
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.Black
                                             )
                                             Text(
                                                 text = "${result.buildingName} • Floor ${result.room.floor}",
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = Color.Gray
+                                                color = Color.DarkGray
                                             )
                                         }
                                     }

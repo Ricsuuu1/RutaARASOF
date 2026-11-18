@@ -18,11 +18,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
-import java.io.File
 import java.util.Locale
-import java.util.PriorityQueue
 import kotlin.math.round
-import kotlin.math.sqrt
 
 // Maximum allowed distance in image pixels from tap to nearest node for setting start point
 const val MAX_PICK_START_DISTANCE_PX = 250f
@@ -105,11 +102,6 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
     // Undo history stack
     private val history = ArrayDeque<GraphData>()
 
-    // File reference for saved graph in internal storage
-    private val savedGraphFile: File by lazy {
-        File(getApplication<Application>().filesDir, "graph_saved.json")
-    }
-
     init {
         _locations.value = repository.getAllLocations()
         _rooms.value = repository.rooms
@@ -127,6 +119,7 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
     // Called when category filter chip is selected
     fun onCategorySelected(category: String) {
         _selectedCategory.value = category
+        _isDropdownExpanded.value = true
         updateSearchResults()
     }
 
@@ -244,8 +237,6 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         _selectedNodeId.value = newNodeId
-
-        saveGraphData()
     }
 
     // Toggle an edge between fromId and toId (adds if missing, removes if present)
@@ -262,8 +253,6 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
         } else {
             _edges.value + GraphEdge(from = fromId, to = toId)
         }
-
-        saveGraphData()
     }
 
     // Delete currently selected node and all connected edges
@@ -274,8 +263,6 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
         _nodes.value = _nodes.value.filterNot { it.id == nodeId }
         _edges.value = _edges.value.filterNot { it.from == nodeId || it.to == nodeId }
         _selectedNodeId.value = null
-
-        saveGraphData()
     }
 
     // Link currently selected node to a CampusLocation ID (enforces 1-to-1 link)
@@ -290,8 +277,6 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
                 else -> node
             }
         }
-
-        saveGraphData()
     }
 
     // Revert to previous graph state from history stack
@@ -301,7 +286,6 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
             _nodes.value = prevState.nodes
             _edges.value = prevState.edges
             _selectedNodeId.value = null
-            saveGraphData()
         }
     }
 
@@ -485,29 +469,9 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // Save current graph to internal storage
-    private fun saveGraphData() {
-        try {
-            val graphData = GraphData(nodes = _nodes.value, edges = _edges.value)
-            val jsonString = jsonParser.encodeToString(GraphData.serializer(), graphData)
-            savedGraphFile.writeText(jsonString)
-        } catch (e: Exception) {
-            Log.e("CampusViewModel", "Failed to save graph data to internal storage", e)
-        }
-    }
-
-    // Load graph data from internal storage, fallback to assets/graph.json, or start empty
+    // Load graph data solely from assets/graph.json
     private fun loadGraphData() {
         try {
-            if (savedGraphFile.exists()) {
-                val jsonString = savedGraphFile.readText()
-                val graphData = jsonParser.decodeFromString(GraphData.serializer(), jsonString)
-                _nodes.value = graphData.nodes
-                _edges.value = graphData.edges
-                return
-            }
-
-            // Fallback: check assets/graph.json
             val context = getApplication<Application>().applicationContext
             val assetNames = context.assets.list("") ?: emptyArray()
             if (assetNames.contains("graph.json")) {
@@ -518,7 +482,7 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
                 return
             }
         } catch (e: Exception) {
-            Log.e("CampusViewModel", "Failed to load graph data, starting empty", e)
+            Log.e("CampusViewModel", "Failed to load graph data from assets/graph.json", e)
         }
 
         _nodes.value = emptyList()
@@ -530,13 +494,15 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
         val query = _searchQuery.value.trim()
         val category = _selectedCategory.value
 
-        // Filter locations
-        val matchingLocations = repository.searchLocations(query).filter { loc ->
-            category == "All" || loc.category.equals(category, ignoreCase = true)
-        }
+        // Filter locations matching query and category, sorted by name
+        val matchingLocations = repository.searchLocations(query)
+            .filter { loc ->
+                category == "All" || loc.category.equals(category, ignoreCase = true)
+            }
+            .sortedBy { it.name }
 
-        // Filter rooms (only shown if filter is "All" or "Building")
-        val matchingRooms = if (category == "All" || category == "Building") {
+        // Filter rooms (only shown when search text is typed and filter is "All" or "Building")
+        val matchingRooms = if (query.isNotBlank() && (category == "All" || category == "Building")) {
             repository.searchRooms(query)
         } else {
             emptyList()
