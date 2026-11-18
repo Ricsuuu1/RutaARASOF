@@ -111,6 +111,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rutaarasof.R
 import com.example.rutaarasof.data.model.CampusLocation
+import com.example.rutaarasof.data.model.DEV_TOOLS_ENABLED
 import com.example.rutaarasof.data.model.GraphNode
 import com.example.rutaarasof.data.model.SearchResult
 import com.example.rutaarasof.ui.CampusViewModel
@@ -268,15 +269,15 @@ fun MapScreen(viewModel: CampusViewModel) {
                         val relX = imgX / drawWidth
                         val relY = imgY / drawHeight
 
-                        if (isCalibrateMode) {
-                            // Calibrate mode tap handling
+                        if (DEV_TOOLS_ENABLED && isCalibrateMode) {
+                            // Calibrate mode tap handling (Dev Tools only)
                             if (relX in 0.0..1.0 && relY in 0.0..1.0) {
                                 val roundX = round(relX * 1000.0) / 1000.0
                                 val roundY = round(relY * 1000.0) / 1000.0
                                 viewModel.setCalibrationTarget(roundX, roundY)
                             }
-                        } else if (isGraphMode) {
-                            // Graph Edit mode tap handling
+                        } else if (DEV_TOOLS_ENABLED && isGraphMode) {
+                            // Graph Edit mode tap handling (Dev Tools only)
                             var hitNode: GraphNode? = null
                             for (node in nodes) {
                                 val dx = (node.x - relX) * drawWidth
@@ -453,8 +454,8 @@ fun MapScreen(viewModel: CampusViewModel) {
                     }
                 }
 
-                // Render Graph Edges (Thin lines, ONLY in Graph Mode)
-                if (isGraphMode) {
+                // Render Graph Edges (Thin lines, ONLY in Graph Mode when Dev Tools are enabled)
+                if (DEV_TOOLS_ENABLED && isGraphMode) {
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         edges.forEach { edge ->
                             val fromNode = nodes.find { it.id == edge.from }
@@ -475,8 +476,8 @@ fun MapScreen(viewModel: CampusViewModel) {
                     }
                 }
 
-                // Render Graph Nodes (Dots on map, ONLY in Graph Mode)
-                if (isGraphMode) {
+                // Render Graph Nodes (Dots on map, ONLY in Graph Mode when Dev Tools are enabled)
+                if (DEV_TOOLS_ENABLED && isGraphMode) {
                     nodes.forEach { node ->
                         val isNodeSelected = node.id == selectedNodeId
                         val nodeX = offsetX0 + (node.x.toFloat() * drawWidth)
@@ -537,7 +538,8 @@ fun MapScreen(viewModel: CampusViewModel) {
                     }
 
                     // Show label for selected marker at any zoom, or for all markers when scale >= 2.0x (hidden in Calib/Graph/PickStart modes)
-                    val shouldShowLabel = (!isCalibrateMode && !isGraphMode && !isPickStartMode) && (isSelected || scale >= 2.0f)
+                    val isDebugActive = DEV_TOOLS_ENABLED && (isCalibrateMode || isGraphMode)
+                    val shouldShowLabel = (!isDebugActive && !isPickStartMode) && (isSelected || scale >= 2.0f)
 
                     // 1. Render Marker Circle as its own Box (position is 100% fixed and identical regardless of label)
                     Box(
@@ -561,7 +563,7 @@ fun MapScreen(viewModel: CampusViewModel) {
                             .padding(if (isSelected) 4.dp else 2.dp)
                             .clip(CircleShape)
                             .background(markerColor)
-                            .clickable(enabled = !isCalibrateMode && !isGraphMode && !isPickStartMode) {
+                            .clickable(enabled = !isDebugActive && !isPickStartMode) {
                                 viewModel.selectLocation(location)
                                 isRoomsExpanded = false
                             },
@@ -628,7 +630,7 @@ fun MapScreen(viewModel: CampusViewModel) {
                 .padding(16.dp)
                 .align(Alignment.TopCenter)
         ) {
-            // Top Search Input Box with Calibrate and Graph Switches
+            // Top Search Input Box with Calibrate and Graph Switches (Control switches rendered only when DEV_TOOLS_ENABLED is true)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -669,50 +671,52 @@ fun MapScreen(viewModel: CampusViewModel) {
                             )
                         )
 
-                        Spacer(modifier = Modifier.width(8.dp))
+                        if (DEV_TOOLS_ENABLED) {
+                            Spacer(modifier = Modifier.width(8.dp))
 
-                        // Control Mode Switches (Calibrate & Graph)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            // Calibrate Switch
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = "Calib",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isCalibrateMode) MaterialTheme.colorScheme.primary else Color.Gray
-                                )
-                                Switch(
-                                    checked = isCalibrateMode,
-                                    onCheckedChange = { viewModel.toggleCalibrateMode(it) },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color.White,
-                                        checkedTrackColor = MaterialTheme.colorScheme.primary
-                                    ),
-                                    modifier = Modifier.size(width = 36.dp, height = 24.dp)
-                                )
-                            }
+                            // Control Mode Switches (Calibrate & Graph)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                // Calibrate Switch
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = "Calib",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isCalibrateMode) MaterialTheme.colorScheme.primary else Color.Gray
+                                    )
+                                    Switch(
+                                        checked = isCalibrateMode,
+                                        onCheckedChange = { viewModel.toggleCalibrateMode(it) },
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = Color.White,
+                                            checkedTrackColor = MaterialTheme.colorScheme.primary
+                                        ),
+                                        modifier = Modifier.size(width = 36.dp, height = 24.dp)
+                                    )
+                                }
 
-                            Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
 
-                            // Graph Switch
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = "Graph",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isGraphMode) MaterialTheme.colorScheme.primary else Color.Gray
-                                )
-                                Switch(
-                                    checked = isGraphMode,
-                                    onCheckedChange = { viewModel.toggleGraphMode(it) },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color.White,
-                                        checkedTrackColor = MaterialTheme.colorScheme.primary
-                                    ),
-                                    modifier = Modifier.size(width = 36.dp, height = 24.dp)
-                                )
+                                // Graph Switch
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = "Graph",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isGraphMode) MaterialTheme.colorScheme.primary else Color.Gray
+                                    )
+                                    Switch(
+                                        checked = isGraphMode,
+                                        onCheckedChange = { viewModel.toggleGraphMode(it) },
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = Color.White,
+                                            checkedTrackColor = MaterialTheme.colorScheme.primary
+                                        ),
+                                        modifier = Modifier.size(width = 36.dp, height = 24.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -783,8 +787,8 @@ fun MapScreen(viewModel: CampusViewModel) {
                 }
             }
 
-            // Floating Graph Edit Toolbar (Shown ONLY when Graph Mode is ON)
-            if (isGraphMode) {
+            // Floating Graph Edit Toolbar (Shown ONLY when DEV_TOOLS_ENABLED is true & Graph Mode is ON)
+            if (DEV_TOOLS_ENABLED && isGraphMode) {
                 Spacer(modifier = Modifier.height(6.dp))
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -1193,17 +1197,36 @@ fun MapScreen(viewModel: CampusViewModel) {
                                 color = Color.Black
                             )
                             Spacer(modifier = Modifier.height(2.dp))
-                            Surface(
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                shape = RoundedCornerShape(8.dp)
-                            ) {
-                                Text(
-                                    text = loc.category,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.Bold
-                                )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Surface(
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text(
+                                        text = loc.category,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                // Show Start Location Badge if this is current start location
+                                if (startNodeId != null && startLabel == loc.name) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Surface(
+                                        color = Color(0xFFE8F5E9),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text(
+                                            text = "Start Location",
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color(0xFF2E7D32),
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
                             }
                         }
 
@@ -1286,7 +1309,7 @@ fun MapScreen(viewModel: CampusViewModel) {
                     }
 
                     // Hide description and action buttons when in Graph mode to keep card compact
-                    if (!isGraphMode) {
+                    if (!DEV_TOOLS_ENABLED || !isGraphMode) {
                         if (activeRoute == null) {
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
@@ -1430,17 +1453,22 @@ fun MapScreen(viewModel: CampusViewModel) {
                                                     modifier = Modifier
                                                         .fillMaxWidth()
                                                         .padding(vertical = 2.dp, horizontal = 4.dp),
-                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.Top
                                                 ) {
                                                     Text(
                                                         text = "• ${room.name}",
+                                                        modifier = Modifier.weight(1f),
                                                         style = MaterialTheme.typography.bodyMedium,
                                                         color = Color.Black
                                                     )
                                                     Text(
                                                         text = room.type,
+                                                        modifier = Modifier.padding(start = 8.dp),
                                                         style = MaterialTheme.typography.labelSmall,
-                                                        color = Color.Gray
+                                                        color = Color.Gray,
+                                                        softWrap = false,
+                                                        maxLines = 1
                                                     )
                                                 }
                                             }
@@ -1509,7 +1537,7 @@ fun MapScreen(viewModel: CampusViewModel) {
         }
 
         // --- 5. CALIBRATION DIALOG ---
-        if (calibrationTarget != null) {
+        if (DEV_TOOLS_ENABLED && calibrationTarget != null) {
             val target = calibrationTarget!!
             var selectedLocationForCalib by remember { mutableStateOf(locations.firstOrNull()) }
 

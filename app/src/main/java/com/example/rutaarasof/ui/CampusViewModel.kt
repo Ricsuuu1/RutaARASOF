@@ -4,14 +4,16 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import com.example.rutaarasof.data.model.CampusLocation
+import com.example.rutaarasof.data.model.DEV_TOOLS_ENABLED
 import com.example.rutaarasof.data.model.GraphData
 import com.example.rutaarasof.data.model.GraphEdge
 import com.example.rutaarasof.data.model.GraphNode
-import com.example.rutaarasof.data.model.METERS_PER_PIXEL
 import com.example.rutaarasof.data.model.Room
 import com.example.rutaarasof.data.model.RouteResult
 import com.example.rutaarasof.data.model.SearchResult
 import com.example.rutaarasof.data.repository.CampusRepository
+import com.example.rutaarasof.data.routing.RouteCalculator
+import com.example.rutaarasof.data.routing.WalkingPathFinder
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,6 +32,7 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
 
     private val repository = CampusRepository(application.applicationContext)
     private val jsonParser = Json { ignoreUnknownKeys = true; prettyPrint = true }
+    private val routeCalculator: RouteCalculator = WalkingPathFinder()
 
     // StateFlow holding all campus map locations
     private val _locations = MutableStateFlow<List<CampusLocation>>(emptyList())
@@ -151,6 +154,10 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
 
     // Toggle calibrate mode switch ON/OFF (mutually exclusive with Graph Mode & Pick Start Mode)
     fun toggleCalibrateMode(enabled: Boolean) {
+        if (!DEV_TOOLS_ENABLED) {
+            _isCalibrateMode.value = false
+            return
+        }
         _isCalibrateMode.value = enabled
         if (enabled) {
             _isGraphMode.value = false
@@ -175,6 +182,10 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
 
     // Toggle Graph Edit Mode switch ON/OFF (mutually exclusive with Calibrate Mode & Pick Start Mode)
     fun toggleGraphMode(enabled: Boolean) {
+        if (!DEV_TOOLS_ENABLED) {
+            _isGraphMode.value = false
+            return
+        }
         _isGraphMode.value = enabled
         if (enabled) {
             _isCalibrateMode.value = false
@@ -425,83 +436,21 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // Core Dijkstra pathfinder between startNodeId and endNodeId
+    // Core pathfinder between startNodeId and endNodeId delegated to Strategy Pattern RouteCalculator
     private fun findRouteBetweenNodes(
         startNodeId: String,
         endNodeId: String,
         mapWidth: Float,
         mapHeight: Float
     ): RouteResult? {
-        val currentNodes = _nodes.value
-        val currentEdges = _edges.value
-
-        if (currentNodes.isEmpty() || currentEdges.isEmpty()) return null
-
-        val nodeMap = currentNodes.associateBy { it.id }
-        val startNode = nodeMap[startNodeId] ?: return null
-        val endNode = nodeMap[endNodeId] ?: return null
-
-        if (startNode.id == endNode.id) {
-            return RouteResult(nodes = listOf(startNode), totalMeters = 0f)
-        }
-
-        // Build adjacency list for undirected graph: nodeId -> List<Pair<neighborId, distanceMeters>>
-        val adjacency = mutableMapOf<String, MutableList<Pair<String, Float>>>()
-        for (edge in currentEdges) {
-            val n1 = nodeMap[edge.from] ?: continue
-            val n2 = nodeMap[edge.to] ?: continue
-
-            val dx = (n2.x - n1.x).toFloat() * mapWidth
-            val dy = (n2.y - n1.y).toFloat() * mapHeight
-            val distPx = sqrt(dx * dx + dy * dy)
-            val distMeters = distPx * METERS_PER_PIXEL
-
-            adjacency.getOrPut(edge.from) { mutableListOf() }.add(Pair(edge.to, distMeters))
-            adjacency.getOrPut(edge.to) { mutableListOf() }.add(Pair(edge.from, distMeters))
-        }
-
-        // Dijkstra PriorityQueue
-        val distances = mutableMapOf<String, Float>()
-        val previous = mutableMapOf<String, String>()
-        val priorityQueue = PriorityQueue<Pair<String, Float>>(compareBy { it.second })
-
-        distances[startNode.id] = 0f
-        priorityQueue.add(Pair(startNode.id, 0f))
-
-        while (priorityQueue.isNotEmpty()) {
-            val (u, currentDist) = priorityQueue.poll() ?: break
-
-            if (u == endNode.id) break // Destination reached
-
-            if (currentDist > (distances[u] ?: Float.POSITIVE_INFINITY)) continue
-
-            val neighbors = adjacency[u] ?: continue
-            for ((v, weight) in neighbors) {
-                val newDist = currentDist + weight
-                if (newDist < (distances[v] ?: Float.POSITIVE_INFINITY)) {
-                    distances[v] = newDist
-                    previous[v] = u
-                    priorityQueue.add(Pair(v, newDist))
-                }
-            }
-        }
-
-        val totalDist = distances[endNode.id] ?: return null
-        if (totalDist == Float.POSITIVE_INFINITY) return null
-
-        // Reconstruct path from destination back to start
-        val pathNodeIds = mutableListOf<String>()
-        var current: String? = endNode.id
-        while (current != null) {
-            pathNodeIds.add(current)
-            current = previous[current]
-        }
-        pathNodeIds.reverse()
-
-        val pathNodes = pathNodeIds.mapNotNull { nodeMap[it] }
-        if (pathNodes.isEmpty()) return null
-
-        return RouteResult(nodes = pathNodes, totalMeters = totalDist)
+        return routeCalculator.calculate(
+            nodes = _nodes.value,
+            edges = _edges.value,
+            startNodeId = startNodeId,
+            endNodeId = endNodeId,
+            mapWidth = mapWidth,
+            mapHeight = mapHeight
+        )
     }
 
     // Find route from startNodeId to endLocationId
