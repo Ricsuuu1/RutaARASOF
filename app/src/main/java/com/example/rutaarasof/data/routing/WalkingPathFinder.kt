@@ -5,14 +5,10 @@ import com.example.rutaarasof.data.model.METERS_PER_PIXEL
 import kotlin.math.sqrt
 
 /**
- * Concrete implementation of [BasePathFinder] that computes edge costs as real-world walking distance in meters.
+ * Path finder that calculates edge costs as real-world walking distance in meters.
  */
 class WalkingPathFinder : BasePathFinder() {
 
-    /**
-     * Overrides [edgeCost] to calculate Euclidean pixel distance between nodes [a] and [b]
-     * scaled to real-world meters using [METERS_PER_PIXEL].
-     */
     override fun edgeCost(
         a: GraphNode,
         b: GraphNode,

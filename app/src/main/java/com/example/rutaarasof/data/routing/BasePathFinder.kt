@@ -6,14 +6,11 @@ import com.example.rutaarasof.data.model.RouteResult
 import java.util.PriorityQueue
 
 /**
- * Abstract base class implementing Dijkstra's algorithm for shortest-path graph traversal.
- * Delegates edge cost computation to concrete subclasses via the polymorphic [edgeCost] method.
+ * Base path finder implementing Dijkstra's algorithm for shortest-path graph traversal.
+ * Subclasses implement [edgeCost] to define how edge weights are calculated.
  */
 abstract class BasePathFinder : RouteCalculator {
 
-    /**
-     * Calculates the cost/weight of traversing an edge between node [a] and node [b].
-     */
     protected abstract fun edgeCost(
         a: GraphNode,
         b: GraphNode,
@@ -21,9 +18,6 @@ abstract class BasePathFinder : RouteCalculator {
         mapHeight: Float
     ): Float
 
-    /**
-     * Executes Dijkstra's algorithm using the polymorphic [edgeCost] method for edge weights.
-     */
     override fun calculate(
         nodes: List<GraphNode>,
         edges: List<GraphEdge>,
@@ -42,7 +36,7 @@ abstract class BasePathFinder : RouteCalculator {
             return RouteResult(nodes = listOf(startNode), totalMeters = 0f)
         }
 
-        // Build adjacency list for undirected graph using polymorphic edgeCost
+        // Build adjacency list for undirected graph
         val adjacency = mutableMapOf<String, MutableList<Pair<String, Float>>>()
         for (edge in edges) {
             val n1 = nodeMap[edge.from] ?: continue
@@ -54,7 +48,7 @@ abstract class BasePathFinder : RouteCalculator {
             adjacency.getOrPut(edge.to) { mutableListOf() }.add(Pair(edge.from, cost))
         }
 
-        // Dijkstra PriorityQueue
+        // Dijkstra's priority queue pathfinding
         val distances = mutableMapOf<String, Float>()
         val previous = mutableMapOf<String, String>()
         val priorityQueue = PriorityQueue<Pair<String, Float>>(compareBy { it.second })
@@ -65,7 +59,7 @@ abstract class BasePathFinder : RouteCalculator {
         while (priorityQueue.isNotEmpty()) {
             val (u, currentDist) = priorityQueue.poll() ?: break
 
-            if (u == endNode.id) break // Destination reached
+            if (u == endNode.id) break
 
             if (currentDist > (distances[u] ?: Float.POSITIVE_INFINITY)) continue
 

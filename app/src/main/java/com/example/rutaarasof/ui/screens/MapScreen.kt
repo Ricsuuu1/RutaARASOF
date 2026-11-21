@@ -10,6 +10,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -46,6 +48,7 @@ import androidx.compose.material.icons.filled.DoorFront
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Navigation
@@ -192,6 +195,7 @@ fun MapScreen(viewModel: CampusViewModel) {
 
     // State for expanding/collapsing room list in bottom location card
     var isRoomsExpanded by remember { mutableStateOf(false) }
+    var isLegendVisible by remember { mutableStateOf(false) }
 
     // Categories filter list
     val categories = listOf("All", "Building", "Gate", "Canteen", "Gym", "Facility")
@@ -1143,6 +1147,15 @@ fun MapScreen(viewModel: CampusViewModel) {
             ) {
                 Icon(imageVector = Icons.Default.Refresh, contentDescription = "Reset View")
             }
+
+            FloatingActionButton(
+                onClick = { isLegendVisible = !isLegendVisible },
+                modifier = Modifier.size(44.dp),
+                containerColor = Color.White,
+                contentColor = MaterialTheme.colorScheme.primary
+            ) {
+                Icon(imageVector = Icons.Default.Info, contentDescription = "Map Legend")
+            }
         }
 
         // --- 4. BOTTOM LOCATION DETAILS CARD ---
@@ -1535,6 +1548,78 @@ fun MapScreen(viewModel: CampusViewModel) {
                             tint = Color.Gray,
                             modifier = Modifier.size(16.dp)
                         )
+                    }
+                }
+            }
+        }
+
+        // --- 4c. MAP LEGEND CARD (shown at bottom-left when toggled and bottom location card is closed) ---
+        if (isLegendVisible && selectedLocation == null) {
+            Card(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(16.dp)
+                    .widthIn(max = 240.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Map Legend",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        IconButton(
+                            onClick = { isLegendVisible = false },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close Legend",
+                                tint = Color.Gray,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+
+                    val legendItems = listOf(
+                        Color(0xFFD88107) to "Administration Building",
+                        Color(0xFFBB000B) to "Allied Service",
+                        Color(0xFFE9EC0C) to "Academic Buildings",
+                        Color(0xFFC21506) to "Mixed-use",
+                        Color(0xFF1156A7) to "Auxiliary Services",
+                        Color(0xFF02B621) to "Others",
+                        Color(0xFFC70071) to "Research Office"
+                    )
+
+                    for ((color, label) in legendItems) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .border(1.dp, Color.Gray, RoundedCornerShape(4.dp))
+                                    .background(color, RoundedCornerShape(4.dp))
+                            )
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontSize = 11.sp,
+                                color = Color(0xFF222222)
+                            )
+                        }
                     }
                 }
             }
